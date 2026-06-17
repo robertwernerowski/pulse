@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pulse — Customer Health & Churn-Risk Console</title>
+<style>
+  :root{
+    --ink:#11140f;
+    --paper:#f6f4ec;
+    --panel:#fffefb;
+    --line:#dcd7c7;
+    --muted:#6b6a5e;
+    --signal:#1f6f4a;      /* healthy green */
+    --signal-soft:#e3efe6;
+    --warn:#b06a17;        /* amber */
+    --warn-soft:#f6ead6;
+    --risk:#a8322b;        /* red */
+    --risk-soft:#f4ddd9;
+    --accent:#2b3a67;      /* deep indigo for AI actions */
+    --accent-soft:#e4e7f0;
+    --shadow:0 1px 0 rgba(0,0,0,.04), 0 8px 28px -18px rgba(17,20,15,.45);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none!important;transition:none!important}
+  }
+
+  /* ---- Masthead ---- */
+  header{
+    border-bottom:2px solid var(--ink);
+    padding:22px 28px 18px;
+    display:flex;justify-content:space-between;align-items:flex-end;
+    flex-wrap:wrap;gap:16px;
+    background:var(--paper);
+  }
+  .brand{display:flex;align-items:baseline;gap:14px}
+  .mark{
+    font-family:"Spectral","Georgia",serif;
+    font-weight:800;font-size:30px;letter-spacing:-.02em;
+    display:flex;align-items:center;gap:9px;
+  }
+  .mark .dot{
+    width:12px;height:12px;border-radius:50%;
+    background:var(--signal);
+    box-shadow:0 0 0 4px var(--signal-soft);
+    animation:beat 2.6s ease-in-out infinite;
+  }
+  @keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.35)}}
+  .tagline{font-size:12.5px;color:var(--muted);max-width:280px}
+  .masthead-meta{font-size:12px;color:var(--muted);text-align:right;line-height:1.7}
+  .masthead-meta b{color:var(--ink);font-weight:600}
+
+  /* ---- Portfolio summary band ---- */
+  .band{
+    display:grid;grid-template-columns:repeat(4,1fr);
+    border-bottom:1px solid var(--line);
+    background:var(--panel);
+  }
+  .stat{padding:18px 28px;border-right:1px solid var(--line)}
+  .stat:last-child{border-right:none}
+  .stat .label{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+  .stat .value{font-family:"Spectral",serif;font-size:30px;font-weight:700;margin-top:4px;letter-spacing:-.01em}
+  .stat .sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .value.good{color:var(--signal)} .value.bad{color:var(--risk)}
+
+  /* ---- Layout ---- */
+  .wrap{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  @media (max-width:880px){ .wrap{grid-template-columns:1fr} .band{grid-template-columns:repeat(2,1fr)} .stat:nth-child(2){border-right:none} }
+  .col{padding:22px 28px}
+  .col.left{border-right:1px solid var(--line)}
+  @media (max-width:880px){ .col.left{border-right:none;border-bottom:1px solid var(--line)} }
+
+  .col-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .col-head h2{font-family:"Spectral",serif;font-size:16px;font-weight:700;letter-spacing:.01em}
+  .filter{display:flex;gap:6px}
+  .chip{
+    font-size:11.5px;border:1px solid var(--line);background:var(--panel);
+    padding:4px 10px;border-radius:999px;cursor:pointer;color:var(--muted);
+    transition:all .15s ease;
+  }
+  .chip:hover{border-color:var(--ink)}
+  .chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+  /* ---- Account cards ---- */
+  .acct{
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:14px 15px;margin-bottom:11px;cursor:pointer;
+    transition:transform .12s ease, box-shadow .15s ease, border-color .15s ease;
+    position:relative;overflow:hidden;
+  }
+  .acct:hover{transform:translateY(-2px);box-shadow:var(--shadow);border-color:#c9c3b0}
+  .acct.sel{border-color:var(--ink);box-shadow:var(--shadow)}
+  .acct::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+  .acct.t-healthy::before{background:var(--signal)}
+  .acct.t-watch::before{background:var(--warn)}
+  .acct.t-risk::before{background:var(--risk)}
+  .acct-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .acct-name{font-weight:600;font-size:15px}
+  .acct-seg{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .score{
+    font-family:"Spectral",serif;font-size:26px;font-weight:700;line-height:1;
+    text-align:right;min-width:46px;
+  }
+  .score small{display:block;font-family:"Inter",sans-serif;font-size:9.5px;font-weight:500;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+  .t-healthy .score{color:var(--signal)} .t-watch .score{color:var(--warn)} .t-risk .score{color:var(--risk)}
+  .meter{height:5px;background:#eceadf;border-radius:3px;margin:11px 0 9px;overflow:hidden}
+  .meter span{display:block;height:100%;border-radius:3px}
+  .t-healthy .meter span{background:var(--signal)} .t-watch .meter span{background:var(--warn)} .t-risk .meter span{background:var(--risk)}
+  .acct-foot{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
+  .pill{display:inline-block;font-size:10.5px;padding:2px 7px;border-radius:999px;font-weight:500}
+  .pill.healthy{background:var(--signal-soft);color:var(--signal)}
+  .pill.watch{background:var(--warn-soft);color:var(--warn)}
+  .pill.risk{background:var(--risk-soft);color:var(--risk)}
+
+  /* ---- Detail / AI panel ---- */
+  .detail{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+  .detail.empty{display:flex;align-items:center;justify-content:center;min-height:320px;text-align:center;color:var(--muted);font-size:13.5px}
+  .d-name{font-family:"Spectral",serif;font-size:22px;font-weight:700}
+  .d-seg{font-size:12.5px;color:var(--muted);margin-bottom:14px}
+  .d-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .d-metric{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:var(--paper)}
+  .d-metric .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+  .d-metric .v{font-size:16px;font-weight:600;margin-top:2px}
+  .d-metric .v.down{color:var(--risk)} .d-metric .v.up{color:var(--signal)}
+
+  .signals{margin-bottom:16px}
+  .signals h4,.action h4{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:8px}
+  .signal-row{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .signal-row:last-child{border-bottom:none}
+  .ico{width:7px;height:7px;border-radius:50%;flex:none}
+  .ico.g{background:var(--signal)} .ico.a{background:var(--warn)} .ico.r{background:var(--risk)}
+
+  .action{border-top:2px solid var(--ink);padding-top:15px;margin-top:4px}
+  .ai-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .ai-badge{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:3px 8px;border-radius:5px}
+  .btn{
+    font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+    background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:10px 16px;transition:opacity .15s ease, transform .1s ease;
+    display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn:hover{opacity:.92} .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.55;cursor:wait}
+  .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+  .ai-out{
+    margin-top:13px;background:var(--paper);border:1px solid var(--line);
+    border-left:3px solid var(--accent);border-radius:8px;padding:14px;
+    font-size:13.5px;line-height:1.6;white-space:pre-wrap;display:none;
+  }
+  .ai-out.show{display:block;animation:rise .35s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .ai-out h5{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:10px 0 4px}
+  .ai-out h5:first-child{margin-top:0}
+  .spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .draft{margin-top:10px;font-style:italic;color:#333}
+
+  footer{border-top:1px solid var(--line);padding:16px 28px;font-size:12px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;background:var(--paper)}
+  footer a{color:var(--accent);text-decoration:none;font-weight:500}
+  .note{font-size:11.5px;color:var(--muted);margin-top:9px}
+  @media (max-width:520px){ .d-grid{grid-template-columns:1fr} .mark{font-size:24px} }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Spectral:wght@600;700;800&display=swap" rel="stylesheet">
+<script>
+  // Optional: to enable live AI, deploy the Vercel proxy (see README) and
+  // paste its URL here. Leave blank for the self-contained static demo.
+  window.PULSE_PROXY_URL = "";
+</script>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark"><span class="dot"></span>Pulse</div>
+    <div class="tagline">Customer health &amp; churn-risk console for B2B success teams. Spot risk early, act before renewal.</div>
+  </div>
+  <div class="masthead-meta">
+    <div>Portfolio: <b>Demo Book — EMEA</b></div>
+    <div>Owner: <b>R. Wernerowski, CSM</b></div>
+    <div id="asof"></div>
+  </div>
+</header>
+
+<div class="band">
+  <div class="stat"><div class="label">Accounts</div><div class="value" id="b-count">—</div><div class="sub">in portfolio</div></div>
+  <div class="stat"><div class="label">Net Revenue Retention</div><div class="value good" id="b-nrr">—</div><div class="sub">trailing 12 months</div></div>
+  <div class="stat"><div class="label">At-Risk ARR</div><div class="value bad" id="b-risk">—</div><div class="sub" id="b-riskn">—</div></div>
+  <div class="stat"><div class="label">Renewals · 90 days</div><div class="value" id="b-ren">—</div><div class="sub">need a plan</div></div>
+</div>
+
+<div class="wrap">
+  <div class="col left">
+    <div class="col-head">
+      <h2>Accounts by health</h2>
+      <div class="filter" id="filter">
+        <span class="chip on" data-f="all">All</span>
+        <span class="chip" data-f="risk">At risk</span>
+        <span class="chip" data-f="watch">Watch</span>
+        <span class="chip" data-f="healthy">Healthy</span>
+      </div>
+    </div>
+    <div id="list"></div>
+  </div>
+
+  <div class="col">
+    <div class="col-head"><h2>Account detail</h2></div>
+    <div id="detail" class="detail empty">Select an account to see its health signals and generate a recommended next action.</div>
+  </div>
+</div>
+
+<footer>
+  <div>Pulse · a portfolio demo. Sample data is fictional. Health scoring &amp; AI suggestions illustrate a real CS workflow.</div>
+  <div>Built by Robert Wernerowski · <a href="https://github.com/robertwernerowski" target="_blank" rel="noopener">github.com/robertwernerowski</a></div>
+</footer>
+
+<script>
+/* ----------------------------------------------------------
+   Sample portfolio. Health score is computed from signals so
+   the logic is transparent and defensible in an interview.
+---------------------------------------------------------- */
+const ACCOUNTS = [
+  { id:1, name:"Northwind Logistics", seg:"Enterprise · Supply Chain", arr:84000,
+    usage:38, usageTrend:-22, lastContactDays:41, renewalDays:34, tickets:6, ticketsTrend:+3,
+    sponsorActive:false, npsLast:6, seats:120, seatsUsed:54,
+    notes:"Champion left in Q2; replacement not yet identified. Usage sliding for 8 weeks." },
+  { id:2, name:"Halberd Payments", seg:"Mid-Market · Fintech", arr:42000,
+    usage:71, usageTrend:+9, lastContactDays:12, renewalDays:58, tickets:2, ticketsTrend:-1,
+    sponsorActive:true, npsLast:9, seats:60, seatsUsed:51,
+    notes:"Strong adoption, expanding to a second team next quarter. Sponsor very engaged." },
+  { id:3, name:"Cedarwood Retail Group", seg:"Enterprise · Retail", arr:96000,
+    usage:55, usageTrend:-6, lastContactDays:27, renewalDays:71, tickets:4, ticketsTrend:+2,
+    sponsorActive:true, npsLast:7, seats:200, seatsUsed:121,
+    notes:"Healthy core usage but seat utilisation flat. Renewal is large; worth a plan now." },
+  { id:4, name:"Vela Maritime", seg:"Mid-Market · Shipping", arr:31000,
+    usage:18, usageTrend:-31, lastContactDays:63, renewalDays:21, tickets:1, ticketsTrend:0,
+    sponsorActive:false, npsLast:4, seats:40, seatsUsed:9,
+    notes:"Onboarding stalled after kickoff. Integration never went live. Renewal imminent." },
+  { id:5, name:"Brightlane SaaS", seg:"Mid-Market · Technology", arr:54000,
+    usage:83, usageTrend:+14, lastContactDays:6, renewalDays:96, tickets:3, ticketsTrend:0,
+    sponsorActive:true, npsLast:10, seats:75, seatsUsed:70,
+    notes:"Power user. Candidate for case study and reference. Possible expansion to API tier." },
+  { id:6, name:"Montclair Industries", seg:"Enterprise · Manufacturing", arr:120000,
+    usage:49, usageTrend:-14, lastContactDays:35, renewalDays:48, tickets:7, ticketsTrend:+4,
+    sponsorActive:true, npsLast:5, seats:300, seatsUsed:128,
+    notes:"Largest account. Rising tickets + slipping usage + lukewarm NPS = needs attention." },
+  { id:7, name:"Aster Health", seg:"Mid-Market · Healthcare", arr:38000,
+    usage:64, usageTrend:+2, lastContactDays:19, renewalDays:110, tickets:2, ticketsTrend:-1,
+    sponsorActive:true, npsLast:8, seats:55, seatsUsed:44,
+    notes:"Steady. No alarms. Good candidate for a light-touch quarterly check-in." },
+  { id:8, name:"Pioneer Traveltech", seg:"Enterprise · Travel", arr:72000,
+    usage:29, usageTrend:-19, lastContactDays:52, renewalDays:29, tickets:5, ticketsTrend:+2,
+    sponsorActive:false, npsLast:5, seats:140, seatsUsed:38,
+    notes:"Multi-region rollout never completed. Sponsor gone quiet. Renewal in <30 days." },
+];
+
+/* ---- transparent health scoring (0–100) ---- */
+function scoreOf(a){
+  let s = 100;
+  s -= Math.max(0, (60 - a.usage)) * 0.45;          // low usage hurts
+  s += a.usageTrend * 0.6;                            // momentum matters
+  s -= Math.max(0, (a.lastContactDays - 21)) * 0.35;  // stale relationship
+  s -= a.tickets * 1.4 + a.ticketsTrend * 2.2;        // support load & trend
+  s += a.sponsorActive ? 6 : -10;                     // champion presence
+  s += (a.npsLast - 7) * 3;                           // sentiment
+  const util = a.seatsUsed / a.seats;
+  s += (util - 0.6) * 25;                             // seat utilisation
+  if (a.renewalDays < 30) s -= 5;                     // urgency pressure
+  return Math.max(2, Math.min(100, Math.round(s)));
+}
+function tierOf(score){ return score >= 70 ? "healthy" : score >= 45 ? "watch" : "risk"; }
+const TIER_LABEL = {healthy:"Healthy", watch:"Watch", risk:"At risk"};
+const money = n => "€" + (n/1000).toFixed(0) + "k";
+
+ACCOUNTS.forEach(a => { a.score = scoreOf(a); a.tier = tierOf(a.score); });
+
+/* ---- portfolio band ---- */
+function renderBand(){
+  const total = ACCOUNTS.reduce((s,a)=>s+a.arr,0);
+  const riskArr = ACCOUNTS.filter(a=>a.tier==="risk").reduce((s,a)=>s+a.arr,0);
+  const riskN = ACCOUNTS.filter(a=>a.tier==="risk").length;
+  const ren90 = ACCOUNTS.filter(a=>a.renewalDays<=90).length;
+  // simple illustrative NRR: healthy expand, risk contract
+  const nrr = Math.round(100 + (ACCOUNTS.filter(a=>a.tier==="healthy").length*3) - (riskN*4));
+  document.getElementById("b-count").textContent = ACCOUNTS.length;
+  document.getElementById("b-nrr").textContent = nrr + "%";
+  document.getElementById("b-nrr").className = "value " + (nrr>=100?"good":"bad");
+  document.getElementById("b-risk").textContent = money(riskArr);
+  document.getElementById("b-riskn").textContent = riskN + " of " + ACCOUNTS.length + " accounts";
+  document.getElementById("b-ren").textContent = ren90;
+  const d = new Date();
+  document.getElementById("asof").innerHTML = "As of <b>"+d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+"</b>";
+}
+
+/* ---- list ---- */
+let activeFilter = "all", selectedId = null;
+function renderList(){
+  const list = document.getElementById("list");
+  const items = ACCOUNTS
+    .filter(a => activeFilter==="all" || a.tier===activeFilter)
+    .sort((a,b)=> a.score - b.score); // worst first — triage view
+  list.innerHTML = items.map(a => `
+    <div class="acct t-${a.tier} ${a.id===selectedId?'sel':''}" data-id="${a.id}">
+      <div class="acct-top">
+        <div>
+          <div class="acct-name">${a.name}</div>
+          <div class="acct-seg">${a.seg} · ${money(a.arr)} ARR</div>
+        </div>
+        <div class="score">${a.score}<small>health</small></div>
+      </div>
+      <div class="meter"><span style="width:${a.score}%"></span></div>
+      <div class="acct-foot">
+        <span class="pill ${a.tier}">${TIER_LABEL[a.tier]}</span>
+        <span>Renews in ${a.renewalDays}d · ${a.usageTrend>0?'▲':'▼'} ${Math.abs(a.usageTrend)}% usage</span>
+      </div>
+    </div>`).join("");
+  list.querySelectorAll(".acct").forEach(el=>{
+    el.addEventListener("click", ()=>{ selectedId = +el.dataset.id; renderList(); renderDetail(); });
+  });
+}
+
+/* ---- detail ---- */
+function renderDetail(){
+  const a = ACCOUNTS.find(x=>x.id===selectedId);
+  const d = document.getElementById("detail");
+  if(!a){ d.className="detail empty"; d.textContent="Select an account…"; return; }
+  d.className="detail";
+  const util = Math.round(a.seatsUsed/a.seats*100);
+  const sig = [];
+  sig.push(a.usageTrend<0 ? ["r",`Usage down ${Math.abs(a.usageTrend)}% over 8 weeks`] : ["g",`Usage up ${a.usageTrend}% — positive momentum`]);
+  sig.push(a.sponsorActive ? ["g","Executive sponsor engaged"] : ["r","No active sponsor / champion identified"]);
+  sig.push(a.lastContactDays>30 ? ["a",`Last meaningful contact ${a.lastContactDays} days ago`] : ["g",`Recent contact (${a.lastContactDays}d ago)`]);
+  sig.push(a.ticketsTrend>0 ? ["a",`Support tickets rising (${a.tickets} open, +${a.ticketsTrend})`] : ["g",`Support load stable (${a.tickets} open)`]);
+  sig.push(util<50 ? ["a",`Low seat utilisation: ${util}% (${a.seatsUsed}/${a.seats})`] : ["g",`Seat utilisation ${util}%`]);
+  sig.push(a.renewalDays<30 ? ["r",`Renewal in ${a.renewalDays} days — act now`] : ["g",`Renewal in ${a.renewalDays} days`]);
+
+  d.innerHTML = `
+    <div class="d-name">${a.name}</div>
+    <div class="d-seg">${a.seg} · ${money(a.arr)} ARR · health ${a.score}/100 · <span class="pill ${a.tier}">${TIER_LABEL[a.tier]}</span></div>
+    <div class="d-grid">
+      <div class="d-metric"><div class="k">Product usage</div><div class="v ${a.usageTrend<0?'down':'up'}">${a.usage}% ${a.usageTrend<0?'▼':'▲'}</div></div>
+      <div class="d-metric"><div class="k">Last NPS</div><div class="v ${a.npsLast<7?'down':'up'}">${a.npsLast}/10</div></div>
+      <div class="d-metric"><div class="k">Seat utilisation</div><div class="v ${util<50?'down':''}">${util}%</div></div>
+      <div class="d-metric"><div class="k">Open tickets</div><div class="v ${a.ticketsTrend>0?'down':''}">${a.tickets} ${a.ticketsTrend>0?'▲':''}</div></div>
+    </div>
+    <div class="signals">
+      <h4>Health signals</h4>
+      ${sig.map(([c,t])=>`<div class="signal-row"><span class="ico ${c}"></span>${t}</div>`).join("")}
+    </div>
+    <div class="action">
+      <div class="ai-head"><span class="ai-badge">AI</span><h4 style="margin:0">Recommended next action</h4></div>
+      <button class="btn" id="genBtn">Generate next action &amp; draft outreach</button>
+      <div class="ai-out" id="aiOut"></div>
+      <div class="note">Uses the account's live signals above to suggest a play and draft a check-in. Illustrative of an AI-assisted CS workflow.</div>
+    </div>`;
+  document.getElementById("genBtn").addEventListener("click", ()=>generate(a));
+}
+
+/* ---- Claude-powered next action ---- */
+async function generate(a){
+  const btn = document.getElementById("genBtn");
+  const out = document.getElementById("aiOut");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Analysing signals…';
+  const util = Math.round(a.seatsUsed/a.seats*100);
+
+  const prompt = `You are an experienced B2B Customer Success Manager. Based ONLY on the account data below, produce a concise, practical recommendation. Be specific and commercially minded; focus on retention and (where justified) expansion.
+
+ACCOUNT: ${a.name} — ${a.seg}
+ARR: €${a.arr}
+Health score: ${a.score}/100 (${a.tier})
+Product usage: ${a.usage}% (trend ${a.usageTrend}% over 8 weeks)
+Seat utilisation: ${util}% (${a.seatsUsed}/${a.seats})
+Last contact: ${a.lastContactDays} days ago
+Open support tickets: ${a.tickets} (trend ${a.ticketsTrend})
+Executive sponsor active: ${a.sponsorActive ? "yes" : "no"}
+Last NPS: ${a.npsLast}/10
+Days to renewal: ${a.renewalDays}
+CSM notes: ${a.notes}
+
+Respond in this EXACT format, no preamble:
+RISK: <one sentence — the single biggest risk or opportunity>
+PRIORITY: <High | Medium | Low>
+PLAY: <2-3 short bullet actions, each starting with "- ">
+EMAIL: <a 3-4 sentence draft check-in email to the customer, warm and specific, no placeholders like [name] beyond a single greeting>`;
+
+  // If a serverless proxy is configured (see /api/suggest.js + Vercel),
+  // calls go there so the API key stays secret. Otherwise the demo
+  // falls back to a realistic locally-generated suggestion so the
+  // page never errors on static hosting like GitHub Pages.
+  const PROXY_URL = window.PULSE_PROXY_URL || ""; // set in config.js to enable live AI
+
+  try{
+    if(!PROXY_URL) throw new Error("no-proxy");
+    const res = await fetch(PROXY_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ prompt })
+    });
+    if(!res.ok) throw new Error("proxy-error");
+    const data = await res.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n").trim();
+    out.innerHTML = formatOutput(text);
+    out.classList.add("show");
+  }catch(e){
+    // Graceful fallback — a deterministic, signal-driven suggestion.
+    out.innerHTML = `<div style="font-size:11.5px;color:var(--muted);margin-bottom:9px">
+      Sample output (live AI runs when a backend proxy is configured — see README).</div>`
+      + formatOutput(localSuggestion(a, util));
+    out.classList.add("show");
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = "Regenerate";
+  }
+}
+
+/* Deterministic fallback so the demo is always alive on static hosting.
+   Mirrors the structure the model returns. */
+function localSuggestion(a, util){
+  const risky = a.tier === "risk", watch = a.tier === "watch";
+  let risk, pri, play, email;
+
+  if(risky && a.renewalDays < 30){
+    risk = `Renewal in ${a.renewalDays} days with declining usage and ${a.sponsorActive?"a sponsor":"no active sponsor"} — high churn probability.`;
+    pri = "High";
+    play = `- Secure an executive conversation this week to re-establish value and a path to renewal\n- ${a.sponsorActive?"Use the sponsor to convene stakeholders":"Map and reach a new champion before the renewal date"}\n- Bring a usage recovery plan tied to their original goals`;
+    email = `Hi — I wanted to reach out personally ahead of your renewal on ${a.name}. I've noticed engagement has dipped recently, and I'd like to make sure we're still set up to deliver the outcomes you signed up for. Could we find 30 minutes this week to review where things stand and agree a simple plan forward? I have a couple of specific ideas I think will help.`;
+  } else if(risky || watch){
+    risk = `${a.usageTrend<0?`Usage down ${Math.abs(a.usageTrend)}% and `:""}${util<50?`seat utilisation only ${util}% — `:""}value is not yet landing across the account.`;
+    pri = risky ? "High" : "Medium";
+    play = `- Run an adoption review focused on the teams not yet active\n- ${a.tickets>3?"Clear the open support backlog to remove friction":"Share a tailored use-case to re-spark usage"}\n- ${a.sponsorActive?"Align with the sponsor on a 60-day success plan":"Identify and engage a new champion"}`;
+    email = `Hi — checking in on how things are going with ${a.name}. I'd love to help more of your team get value from what you already have: I've seen similar accounts unlock a lot by activating the teams that haven't started yet. Would you be open to a short call so I can walk through a couple of quick wins tailored to your goals?`;
+  } else {
+    risk = `Healthy and engaged — the opportunity is expansion and turning ${a.name} into a reference.`;
+    pri = "Low";
+    play = `- Propose expansion where utilisation is high (${util}%)\n- Invite to a case study or reference programme\n- Keep a light-touch quarterly cadence to protect the relationship`;
+    email = `Hi — great to see how well your team is using the platform. Given the strong adoption, I'd love to explore a couple of ways we could extend the value further, and I'd also be keen to feature your success as a short case study if you're open to it. Shall we grab 20 minutes next week?`;
+  }
+  return `RISK: ${risk}\nPRIORITY: ${pri}\nPLAY:\n${play}\nEMAIL: ${email}`;
+}
+
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function formatOutput(text){
+  const grab = (key)=>{
+    const re = new RegExp(key+":\\s*([\\s\\S]*?)(?=\\n[A-Z]+:|$)","i");
+    const m = text.match(re); return m ? m[1].trim() : "";
+  };
+  const risk = grab("RISK"), pri = grab("PRIORITY"), play = grab("PLAY"), email = grab("EMAIL");
+  if(!risk && !play){ return esc(text); }
+  const playHtml = esc(play).split(/\n/).filter(Boolean).map(l=>l.replace(/^-\s*/,"• ")).join("<br>");
+  return `
+    <h5>Biggest risk / opportunity</h5>${esc(risk)}
+    <h5>Priority</h5>${esc(pri)}
+    <h5>Recommended play</h5>${playHtml}
+    <h5>Draft outreach</h5><div class="draft">${esc(email).replace(/\n/g,"<br>")}</div>`;
+}
+
+renderBand(); renderList();
+document.getElementById("filter").addEventListener("click", e=>{
+  if(!e.target.classList.contains("chip")) return;
+  document.querySelectorAll(".chip").forEach(c=>c.classList.remove("on"));
+  e.target.classList.add("on");
+  activeFilter = e.target.dataset.f;
+  renderList();
+});
+</script>
+</body>
+</html>
